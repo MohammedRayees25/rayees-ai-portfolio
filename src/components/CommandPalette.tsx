@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpRight,
+  FileText,
   Github,
   Home,
   Layers,
@@ -59,26 +60,32 @@ export default function CommandPalette({
         run: () => go("#skills"),
       },
       {
-        label: "Work",
-        hint: "Featured projects",
+        label: "View Projects",
+        hint: "Featured work",
         icon: Sparkles,
         run: () => go("#work"),
       },
       {
-        label: "Contact",
+        label: "View Resume",
+        hint: "Open printable resume",
+        icon: FileText,
+        run: () => window.open("/resume", "_blank"),
+      },
+      {
+        label: "Contact Me",
         hint: "Get in touch",
         icon: Mail,
         run: () => go("#contact"),
       },
       {
-        label: "GitHub",
-        hint: "Open profile",
+        label: "Open GitHub",
+        hint: SITE.github.replace("https://", ""),
         icon: Github,
         run: () => window.open(SITE.github, "_blank"),
       },
       {
-        label: "LinkedIn",
-        hint: "Open profile",
+        label: "Open LinkedIn",
+        hint: SITE.linkedin.replace("https://www.", ""),
         icon: Linkedin,
         run: () => window.open(SITE.linkedin, "_blank"),
       },

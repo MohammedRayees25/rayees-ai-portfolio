@@ -29,9 +29,10 @@ body {
   font-feature-settings: "ss01", "cv01";
 }
 
-/* Hide default cursor on devices with fine pointer (custom cursor active) */
+/* Hide default cursor only when the custom cursor is mounted (fine pointers) */
 @media (pointer: fine) {
-  * {
+  html[data-custom-cursor="true"],
+  html[data-custom-cursor="true"] * {
     cursor: none !important;
   }
 }
@@ -151,5 +152,20 @@ body {
 @media (pointer: coarse) {
   .custom-cursor {
     display: none !important;
+  }
+}
+
+/* Print styles for the resume route */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  ::-webkit-scrollbar {
+    display: none;
   }
 }
