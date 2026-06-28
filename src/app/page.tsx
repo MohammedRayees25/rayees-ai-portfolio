@@ -3,7 +3,6 @@
 import { useState } from "react";
 import SmoothScroll from "@/components/SmoothScroll";
 import CustomCursor from "@/components/CustomCursor";
-import LoadingScreen from "@/components/LoadingScreen";
 import ScrollProgress from "@/components/ScrollProgress";
 import Navbar from "@/components/Navbar";
 import CommandPalette from "@/components/CommandPalette";
@@ -21,7 +20,6 @@ export default function Home() {
 
   return (
     <SmoothScroll>
-      <LoadingScreen />
       <CustomCursor />
       <ScrollProgress />
       <Navbar onOpenPalette={() => setPaletteOpen(true)} />

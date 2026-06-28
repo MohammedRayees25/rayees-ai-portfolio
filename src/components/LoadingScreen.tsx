@@ -1,9 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { usePathname } from "next/navigation";
+import { AnimatePresence, motion, type Variants } from "framer-motion";
+import { gsap } from "gsap";
 
-function ParticleField() {
+const NAME = "RAYEES";
+const EASE = [0.16, 1, 0.3, 1] as const;
+
+// useLayoutEffect on the client, useEffect on the server (avoids SSR warning)
+const useIsoLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+/** Small floating dust particles drawn on a canvas. */
+function DustField() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -12,64 +27,46 @@ function ParticleField() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let w = (canvas.width = window.innerWidth);
-    let h = (canvas.height = window.innerHeight);
-    const count = Math.min(110, Math.floor(window.innerWidth / 14));
-    const colors = ["#00ff88", "#00e5ff"];
-    const particles = Array.from({ length: count }, () => ({
+    let w = (canvas.width = canvas.clientWidth);
+    let h = (canvas.height = canvas.clientHeight);
+    const count = Math.min(60, Math.floor(w / 22));
+    const dust = Array.from({ length: count }, () => ({
       x: Math.random() * w,
       y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.6,
-      vy: (Math.random() - 0.5) * 0.6,
-      r: Math.random() * 1.8 + 0.4,
-      c: colors[Math.floor(Math.random() * colors.length)],
+      r: Math.random() * 1.6 + 0.3,
+      vy: -(Math.random() * 0.4 + 0.1),
+      vx: (Math.random() - 0.5) * 0.2,
+      a: Math.random() * 0.5 + 0.1,
     }));
 
-    let frame = 0;
+    let raf = 0;
     const render = () => {
       ctx.clearRect(0, 0, w, h);
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        p.x += p.vx;
+      for (const p of dust) {
         p.y += p.vy;
-        if (p.x < 0 || p.x > w) p.vx *= -1;
-        if (p.y < 0 || p.y > h) p.vy *= -1;
-
+        p.x += p.vx;
+        if (p.y < -5) {
+          p.y = h + 5;
+          p.x = Math.random() * w;
+        }
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = p.c;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = p.c;
+        ctx.fillStyle = `rgba(255,255,255,${p.a})`;
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = "rgba(255,255,255,0.8)";
         ctx.fill();
-
-        for (let j = i + 1; j < particles.length; j++) {
-          const q = particles[j];
-          const dx = p.x - q.x;
-          const dy = p.y - q.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < 120) {
-            ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
-            ctx.lineTo(q.x, q.y);
-            ctx.strokeStyle = `rgba(0,255,136,${0.12 * (1 - dist / 120)})`;
-            ctx.lineWidth = 0.5;
-            ctx.shadowBlur = 0;
-            ctx.stroke();
-          }
-        }
       }
-      frame = requestAnimationFrame(render);
+      raf = requestAnimationFrame(render);
     };
     render();
 
     const onResize = () => {
-      w = canvas.width = window.innerWidth;
-      h = canvas.height = window.innerHeight;
+      w = canvas.width = canvas.clientWidth;
+      h = canvas.height = canvas.clientHeight;
     };
     window.addEventListener("resize", onResize);
-
     return () => {
-      cancelAnimationFrame(frame);
+      cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
     };
   }, []);
@@ -77,89 +74,170 @@ function ParticleField() {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 h-full w-full opacity-70"
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      aria-hidden
     />
   );
 }
 
+const containerVariants: Variants = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.09, delayChildren: 0.25 },
+  },
+};
+
+const charVariants: Variants = {
+  hidden: { opacity: 0, y: 44, filter: "blur(26px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    textShadow: [
+      "0 0 0px rgba(255,255,255,0)",
+      "0 0 34px rgba(255,255,255,0.85)",
+      "0 0 18px rgba(255,255,255,0.45)",
+    ],
+    transition: { duration: 0.95, ease: EASE },
+  },
+};
+
 export default function LoadingScreen() {
-  const [progress, setProgress] = useState(0);
+  const pathname = usePathname();
+  const isHome = pathname === "/";
+
+  const [visible, setVisible] = useState(true);
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useIsoLayoutEffect(() => {
+    if (!isHome) return;
+
+    const prefersReduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let alreadyPlayed = false;
+    try {
+      alreadyPlayed = sessionStorage.getItem("introPlayed") === "true";
+    } catch {
+      alreadyPlayed = false;
+    }
+
+    // Skip instantly (before paint) on repeat loads / reduced motion.
+    if (alreadyPlayed || prefersReduced) {
+      setDone(true);
+      return;
+    }
+
+    try {
+      sessionStorage.setItem("introPlayed", "true");
+    } catch {
+      /* ignore */
+    }
+
+    // Lock scrolling while the intro is on screen.
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    let value = 0;
-    const interval = setInterval(() => {
-      value += Math.random() * 14 + 4;
-      if (value >= 100) {
-        value = 100;
-        clearInterval(interval);
-        setTimeout(() => {
-          setDone(true);
-          document.body.style.overflow = "";
-        }, 500);
-      }
-      setProgress(Math.floor(value));
-    }, 130);
+
+    // Phase 3 (1800–2500ms): GSAP white glow + slight zoom in.
+    const tl = gsap.timeline();
+    if (wrapRef.current) {
+      tl.to(
+        wrapRef.current,
+        {
+          scale: 1.045,
+          filter: "drop-shadow(0 0 60px rgba(255,255,255,0.85))",
+          duration: 0.7,
+          ease: "power2.out",
+        },
+        1.8
+      );
+    }
+
+    // Phase 4: trigger exit at 2500ms (exit animation runs 500ms).
+    const exitTimer = window.setTimeout(() => setVisible(false), 2500);
 
     return () => {
-      clearInterval(interval);
-      document.body.style.overflow = "";
+      window.clearTimeout(exitTimer);
+      tl.kill();
+      document.body.style.overflow = prevOverflow;
     };
-  }, []);
+  }, [isHome]);
+
+  const finish = () => {
+    setDone(true);
+    document.body.style.overflow = "";
+  };
+
+  if (!isHome || done) return null;
 
   return (
-    <AnimatePresence>
-      {!done && (
+    <AnimatePresence onExitComplete={finish}>
+      {visible && (
         <motion.div
-          className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-background noise"
-          exit={{ opacity: 0, filter: "blur(12px)" }}
-          transition={{ duration: 0.8, ease: [0.65, 0, 0.35, 1] }}
+          key="intro"
+          className="film-grain noise fixed inset-0 z-[10000] flex items-center justify-center overflow-hidden bg-black"
+          exit={{
+            opacity: 0,
+            filter: "blur(20px)",
+            scale: 1.05,
+            transition: { duration: 0.5, ease: EASE },
+          }}
         >
-          <div className="grid-bg absolute inset-0 opacity-40" />
-          <ParticleField />
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-[120px]" />
-          <div className="relative flex flex-col items-center gap-8">
+          <DustField />
+
+          {/* Soft white core glow (intensifies in phase 3) */}
+          <motion.div
+            className="pointer-events-none absolute left-1/2 top-1/2 h-[40vh] w-[60vw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/[0.06] blur-[120px]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.4, 0.9] }}
+            transition={{ duration: 2.5, ease: EASE, times: [0, 0.7, 1] }}
+          />
+
+          {/* Phase 3 outer wrapper (GSAP target: scale + glow) */}
+          <div ref={wrapRef} className="relative">
+            {/* Phase 1: whole word blur / scale / opacity reveal */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="font-mono text-xs uppercase tracking-[0.5em] text-muted"
+              initial={{ scale: 1.2, opacity: 0, filter: "blur(24px)" }}
+              animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
+              transition={{ duration: 0.5, ease: EASE }}
             >
-              Initializing
+              {/* Phase 2: per-character stagger reveal */}
+              <motion.h1
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="flex font-display font-bold leading-none text-white"
+                style={{
+                  letterSpacing: "-0.08em",
+                  fontSize: "clamp(4.5rem, 20vw, 12rem)",
+                }}
+                aria-label={NAME}
+              >
+                {NAME.split("").map((char, i) => (
+                  <motion.span
+                    key={i}
+                    variants={charVariants}
+                    className="inline-block"
+                  >
+                    {char}
+                  </motion.span>
+                ))}
+              </motion.h1>
             </motion.div>
-
-            <div className="relative flex font-display text-6xl font-bold tracking-tighter sm:text-8xl">
-              {"RAYEES".split("").map((char, i) => (
-                <motion.span
-                  key={i}
-                  initial={{ opacity: 0, y: 40, filter: "blur(20px)" }}
-                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                  transition={{
-                    duration: 0.9,
-                    delay: 0.15 + i * 0.09,
-                    ease: [0.16, 1, 0.3, 1],
-                  }}
-                  className="text-gradient-primary glow-primary inline-block"
-                >
-                  {char}
-                </motion.span>
-              ))}
-            </div>
-
-            <div className="flex w-64 flex-col gap-3 sm:w-80">
-              <div className="h-px w-full overflow-hidden bg-white/10">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-primary to-accent"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.3em] text-muted">
-                <span>Loading systems</span>
-                <span className="text-primary">{progress}%</span>
-              </div>
-            </div>
           </div>
+
+          {/* Bottom hint line */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 1 }}
+            className="absolute bottom-12 left-1/2 -translate-x-1/2 font-mono text-[10px] uppercase tracking-[0.6em] text-white/40"
+          >
+            AI Data Engineer
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
