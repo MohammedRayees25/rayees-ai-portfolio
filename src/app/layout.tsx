@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
-import LoadingScreen from "@/components/LoadingScreen";
 import "./globals.css";
 
 const display = Space_Grotesk({
@@ -78,7 +77,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body className="font-sans antialiased bg-background text-foreground">
-        <LoadingScreen />
         {children}
       </body>
     </html>
